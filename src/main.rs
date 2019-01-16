@@ -1,6 +1,6 @@
-pub mod schema;
-pub mod models;
-pub mod logic;
+mod schema;
+mod models;
+mod logic;
 
 #[macro_use] extern crate diesel;
 
@@ -14,3 +14,4 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
+

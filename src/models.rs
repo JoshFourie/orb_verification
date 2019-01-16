@@ -36,4 +36,13 @@ impl InsertOrb {
             common_reference_string: crs,
         }
     }
+    pub fn into_from_tuple(tuple: (String, String, String, String, String)) -> Self {
+        Self::into(
+            tuple.0,
+            tuple.1,
+            tuple.2,
+            tuple.3,
+            tuple.4,
+        )
+    }
 }
