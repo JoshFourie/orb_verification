@@ -1,8 +1,17 @@
 use zero_orb::{interface::*, *};
-use diesel::{Connection, RunQueryDsl};
+use diesel::{Connection, RunQueryDsl, QueryDsl};
 
 
-pub fn handler(object: String, ctx: lambda_runtime::Context) -> Result<bool, lambda_runtime::error::HandlerError> {
+pub fn exposed_handler(object: String, ctx: lambda_runtime::Context) -> Result<bool, lambda_runtime::error::HandlerError> {
+
+    match handler(object) {
+        Ok(x) => Ok(x),
+        Err(e) => Err(ctx.new_error(e)),
+    }
+
+}
+
+fn handler(object: String) -> Result<bool, &'static str> {
 
     match serde_json::from_str::<BackPack<CommonReference<FrLocal, G1Local, G2Local>, FrLocal, G1Local, G2Local, GtLocal>>(
         &object
@@ -24,8 +33,8 @@ pub fn handler(object: String, ctx: lambda_runtime::Context) -> Result<bool, lam
                         Ok(_) => Ok(true),
 
                         Err(e) => {
-                            log::error!("logic::handler() verified the orb as true but failed to update the databse: {}", &e);
-                            Err(ctx.new_error("logic::handler() verified the orb as true but failed to update the databse"))
+                            log::error!("logic::handler() verified the orb as true but failed to update the databse: {}", e);
+                            Err("logic::handler() verified the orb as true but failed to update the databse")
                         },
                     }
                 },
@@ -37,16 +46,14 @@ pub fn handler(object: String, ctx: lambda_runtime::Context) -> Result<bool, lam
             }
         },
 
-        Err(_) => {
+        Err(e) => {
             log::error!("logic::handler::from_str() panicked when deserializing the object");
-            Err(ctx.new_error("logic::handler::from_str() panicked when deserializing the object"))
+            Err("logic::handler::from_str() panicked when deserializing the object")
         },
     }
 }
 
 fn establish_connection() -> diesel::pg::PgConnection {
-
-    use diesel::Connection;
 
     dotenv::dotenv().ok();
 
@@ -58,8 +65,9 @@ fn establish_connection() -> diesel::pg::PgConnection {
 
 #[test]
 fn test_true_orb_insert() {
-    use zero_orb::{interface::*, *};
     use amelia_orb::interface::Amelia;
+    use diesel::ExpressionMethods;
+    use crate::{models, schema};
 
     let amelia_serialized = serde_json::to_string(
         &Amelia {
@@ -71,10 +79,23 @@ fn test_true_orb_insert() {
             key_pair: Amelia::gen_ed25519_key_pairing(),
         }
     ).expect("internal_tests: Serializing &x to String");
+
     let object = Amelia::go_andromeda(amelia_serialized);
-    assert!(
-        serde_json::from_str::<BackPack<CommonReference<FrLocal, G1Local, G2Local>, FrLocal, G1Local, G2Local, GtLocal>>(&object)
-            .expect("internal_test: serde_json::from_str::BackPack<...>::(&object) panicked when deserializing to BackPack")
-            .verify()
-    );
+    
+    let (_, _, sig, _, _) = serde_json::from_str::<BackPack<CommonReference<FrLocal, G1Local, G2Local>, FrLocal, G1Local, G2Local, GtLocal>>(
+        &object
+    ).unwrap().copy_str();
+
+    assert!(handler(object).unwrap());
+
+    let expected = &schema::true_orbs::table
+        .filter(schema::true_orbs::columns::signature.eq(&sig))
+        .load::<models::TrueOrb>(&establish_connection())
+        .unwrap(); 
+    for e in expected {
+        assert_eq!(
+            e.signature, 
+            sig
+        );
+    };
 }
