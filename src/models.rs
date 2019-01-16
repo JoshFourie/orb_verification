@@ -1,7 +1,6 @@
 use crate::schema::true_orbs;
-use serde_derive::{Serialize, Deserialize};
 
-#[derive(Queryable, Serialize, Deserialize)]
+#[derive(Queryable)]
 pub struct TrueOrb {
     pub id: i32,
     pub proof: String,
