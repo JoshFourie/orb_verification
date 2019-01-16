@@ -1,0 +1,39 @@
+use crate::schema::true_orbs;
+
+#[derive(Queryable)]
+pub struct TrueOrb {
+    pub id: i32,
+    pub proof: String,
+    pub verified_values: String,
+    pub signature: String,
+    pub public_key: String,
+    pub common_reference_string: String,
+}
+
+#[derive(Insertable)]
+#[table_name="true_orbs"]
+pub struct InsertOrb {
+    pub proof: String,
+    pub verified_values: String,
+    pub signature: String,
+    pub public_key: String,
+    pub common_reference_string: String,
+}
+
+impl InsertOrb {
+    pub fn into(
+        proof: String,
+        ver: String,
+        sig: String,
+        pub_key: String,
+        crs: String,
+    ) -> Self {
+        InsertOrb {
+            proof: proof,
+            verified_values: ver,
+            signature: sig,
+            public_key: pub_key,
+            common_reference_string: crs,
+        }
+    }
+}
