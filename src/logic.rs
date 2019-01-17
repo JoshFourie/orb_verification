@@ -17,35 +17,45 @@ fn handler(object: String) -> Result<bool, &'static str> {
         &object
     ) {
         Ok(orb) => {
+            match std::fs::read_to_string("src/tests/sample.crs") {
+                Ok(crs) => {
+                    match orb.get_crs_str() == crs {
+                        true => {
+                            let orb_ref_copy = orb.copy_str();
+                            match orb.verify() {
+                                true => {
+                                    log::info!("True {}", &orb_ref_copy.2);
+                                    match diesel::insert_into(crate::schema::true_orbs::table)
+                                        .values(&crate::models::InsertOrb::into_from_tuple(orb_ref_copy))
+                                        .execute(&establish_connection()) 
+                                    {
+                                        Ok(_) => Ok(true),
 
-            let orb_ref_copy = orb.copy_str();
-
-            match orb.verify() {
-
-                true => {
-
-                    log::info!("True {}", &orb_ref_copy.2);
-
-                    match diesel::insert_into(crate::schema::true_orbs::table)
-                        .values(&crate::models::InsertOrb::into_from_tuple(orb_ref_copy))
-                        .execute(&establish_connection()) 
-                    {
-                        Ok(_) => Ok(true),
-
-                        Err(e) => {
-                            log::error!("logic::handler() verified the orb as true but failed to update the databse: {}", e);
-                            Err("logic::handler() verified the orb as true but failed to update the databse")
+                                        Err(e) => {
+                                            log::error!("logic::handler() verified the orb as true but failed to update the databse: {}", e);
+                                            Err("logic::handler() verified the orb as true but failed to update the databse")
+                                        },
+                                    }
+                                },
+                                false => {
+                                    log::info!("False {}", orb_ref_copy.2);
+                                    Ok(false)
+                                },
+                            }
+                        },
+                        false =>  {
+                            log::error!("logic::handler() rejected the provided CRS as non-equivalent to the databse");
+                            Err("logic::handler() rejected the provided CRS as non-equivalent to the database")
                         },
                     }
                 },
-
-                false => {
-                    log::info!("False {}", orb_ref_copy.2);
-                    Ok(false)
+                Err(_) => {
+                    log::error!("logic::handler::from_str() panicked when reading the crs from file");
+                    Err("logic::handler panicked whilst reading the crs from file")
                 },
             }
+            
         },
-
         Err(e) => {
             log::error!("logic::handler::from_str() panicked when deserializing the object");
             Err("logic::handler::from_str() panicked when deserializing the object")
@@ -86,7 +96,7 @@ fn test_true_orb_insert() {
         &object
     ).unwrap().copy_str();
 
-    assert!(handler(object).unwrap());
+    assert!(handler(object).expect("internal_test::Handler() panicked"));
 
     let expected = &schema::true_orbs::table
         .filter(schema::true_orbs::columns::signature.eq(&sig))
