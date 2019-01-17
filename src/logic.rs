@@ -1,23 +1,31 @@
 use zero_orb::{interface::*, *};
 use diesel::{Connection, RunQueryDsl, QueryDsl};
 
-
+// a single endpoint for the lambda macro to iterate over that lets us handle non-lambda errors from diesel and serde within the lambda framework.
 pub fn exposed_handler(object: String, ctx: lambda_runtime::Context) -> Result<bool, lambda_runtime::error::HandlerError> {
 
-    match handler(object) {
+    match handler(object, "src/tests/sample.crs") {
         Ok(x) => Ok(x),
         Err(e) => Err(ctx.new_error(e)),
     }
 
 }
 
-fn handler(object: String) -> Result<bool, &'static str> {
+// the first handler we need for the pilot.
+// takes in the 'object' which is the orb provided, and a string referring the program to where we've stored the CRS we want to use.
+// first, the fn() deserializes the object into the BackPack struct with the type-arguments we generated for our CRS.
+// second, handles any errors wrt reading the on-file crs.
+// third, asserts that the provided CRS the prover has sent along matches the crs we have on file.
+// fourth, runs the .verify check derived from the zkVerify trait in zero_orb and matches to a true or false outcome.
+// fifth a true outcome then triggers a logging job and an insert job managed by diesel which inserts the TrueOrb struct in models.rs.
+// TODO: impl a way to proc a payment call.
+fn handler(object: String, crs_path: &'static str) -> Result<bool, &'static str> {
 
-    match serde_json::from_str::<BackPack<CommonReference<FrLocal, G1Local, G2Local>, FrLocal, G1Local, G2Local, GtLocal>>(
+    match serde_json::from_str::<BackPack<CommonReference<FrLocal, G1Local, G2Local>, _, _, _, _>>(
         &object
     ) {
         Ok(orb) => {
-            match std::fs::read_to_string("src/tests/sample.crs") {
+            match std::fs::read_to_string(crs_path) {
                 Ok(crs) => {
                     match orb.get_crs_str() == crs {
                         true => {
@@ -53,8 +61,7 @@ fn handler(object: String) -> Result<bool, &'static str> {
                     log::error!("logic::handler::from_str() panicked when reading the crs from file");
                     Err("logic::handler panicked whilst reading the crs from file")
                 },
-            }
-            
+            } 
         },
         Err(e) => {
             log::error!("logic::handler::from_str() panicked when deserializing the object");
@@ -63,6 +70,7 @@ fn handler(object: String) -> Result<bool, &'static str> {
     }
 }
 
+// requisite from diesel crate.
 fn establish_connection() -> diesel::pg::PgConnection {
 
     dotenv::dotenv().ok();
@@ -79,6 +87,7 @@ fn test_true_orb_insert() {
     use diesel::ExpressionMethods;
     use crate::{models, schema};
 
+    // create a dummy struct to run through zero_orb.
     let amelia_serialized = serde_json::to_string(
         &Amelia {
             crs: std::fs::read_to_string("src/tests/sample.crs")
@@ -90,14 +99,17 @@ fn test_true_orb_insert() {
         }
     ).expect("internal_tests: Serializing &x to String");
 
+    // build the object to pass to the handler.
+    // make a copy to pull a field so that we can search the database.
     let object = Amelia::go_andromeda(amelia_serialized);
-    
     let (_, _, sig, _, _) = serde_json::from_str::<BackPack<CommonReference<FrLocal, G1Local, G2Local>, FrLocal, G1Local, G2Local, GtLocal>>(
         &object
     ).unwrap().copy_str();
-
+    
+    // assert that the handler spits back a true boolean and does not panic.
     assert!(handler(object).expect("internal_test::Handler() panicked"));
 
+    // search the database for matching signatures and assert that they are inserted.
     let expected = &schema::true_orbs::table
         .filter(schema::true_orbs::columns::signature.eq(&sig))
         .load::<models::TrueOrb>(&establish_connection())
