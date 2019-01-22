@@ -6,7 +6,7 @@ mod logic;
 #[macro_use] extern crate diesel;
 
 // the next step will be a farirly lengthy matching algorithm for the various orbs we would want ot verify so there is a single exposed handler for convenience.
-use logic::exposed_handler;
+use crate::logic::exposed_handler;
 
 // simple_logger logs errors for AWS lambda, and the lambda_runtime macro lambda! exposes the 'logic' mod to AWS Lambda.
 fn main() -> Result<(), Box<dyn std::error::Error>> {
