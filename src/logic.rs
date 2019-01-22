@@ -107,7 +107,7 @@ fn test_true_orb_insert() {
     ).unwrap().copy_str();
     
     // assert that the handler spits back a true boolean and does not panic.
-    assert!(handler(object).expect("internal_test::Handler() panicked"));
+    assert!(handler(object, "src/tests/sample.crs").expect("internal_test::Handler() panicked"));
 
     // search the database for matching signatures and assert that they are inserted.
     let expected = &schema::true_orbs::table
