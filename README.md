@@ -1,3 +1,7 @@
+# Repository Notice: Archived
+
+This is a server for managing zk-proof verifications for an old system. 
+
 # orb_verification
 Orb Verification layer for OMNIA Protocol.
 
